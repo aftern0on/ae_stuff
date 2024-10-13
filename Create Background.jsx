@@ -156,10 +156,33 @@ function Background() {
 }
 
 function Transition() {
-    this.toRight = function(layer, comp) {
+    this.moveBezier = function(layer, comp, direction) {
+        // Учет масштаба слоя
+        var scale = layer.property("Scale").valueAtTime(comp.time, false);
+        var scaleFactorX = scale[0] / 100; // Коэффициент по X
+        var scaleFactorY = scale[1] / 100; // Коэффициент по Y
+
         // Установка ключевых кадров
         var initPos = layer.property("Position").valueAtTime(comp.time, false);
-        var newPos = [comp.width + layer.width / 2, initPos[1]];
+        var newPos;
+
+        // Вычисление конечной позиции в зависимости от направления
+        switch (direction) {
+            case "right":
+                newPos = [comp.width + (layer.width * scaleFactorX) / 2, initPos[1]];
+                break;
+            case "left":
+                newPos = [-(layer.width * scaleFactorX) / 2, initPos[1]];
+                break;
+            case "up":
+                newPos = [initPos[0], -(layer.height * scaleFactorY) / 2];
+                break;
+            case "down":
+                newPos = [initPos[0], comp.height + (layer.height * scaleFactorY) / 2];
+                break;
+            default:
+                throw new Error("Неверное направление движения");
+        }
         layer.property("Position").setValueAtTime(comp.time, initPos);
         layer.property("Position").setValueAtTime(layer.outPoint, newPos);
         var startKeyIndex = layer.property("Position").nearestKeyIndex(comp.time);
@@ -168,13 +191,13 @@ function Transition() {
         // Установка интерполяции перехода
         layer.property("Position").setInterpolationTypeAtKey(startKeyIndex, KeyframeInterpolationType.BEZIER);
         layer.property("Position").setInterpolationTypeAtKey(endKeyIndex, KeyframeInterpolationType.BEZIER);
-        var easeIn = new KeyframeEase(43, 90);
-        var easeOut = new KeyframeEase(90, 23);
+        var easeIn = new KeyframeEase(0, 75);
+        var easeOut = new KeyframeEase(0, 75);
         layer.property("Position").setTemporalEaseAtKey(startKeyIndex, [easeIn], [easeOut]);
-        // layer.property("Position").setTemporalEaseAtKey(endKeyIndex, [easeIn], [easeOut]);
+        layer.property("Position").setTemporalEaseAtKey(endKeyIndex, [easeIn], [easeOut]);
     }
 
-    this.run = function() {
+    this.run = function(direction) {
         // Проверяем, открыт ли проект
         if (app.project == null) {
             alert("Проект не открыт.");
@@ -194,7 +217,7 @@ function Transition() {
             alert("Пожалуйста, выберите слой.");
             return;
         }
-        this.toRight(layer, comp);
+        this.moveBezier(layer, comp, direction);
     }
 }
 
@@ -208,7 +231,10 @@ function UI() {
         if (myPanel != null) {
             var buttons = [
                 ["Создать фон", function() { new Background().run() }],
-                ["Переход вправо", function() { new Transition().run() }]
+                ["Переход >", function() { new Transition().run("right") }],
+                ["Переход <", function() { new Transition().run("left") }],
+                ["Переход ↑", function() { new Transition().run("up") }],
+                ["Переход ↓", function() { new Transition().run("down") }]
             ]
 
             for (var i = 0; i < buttons.length; i++) {
