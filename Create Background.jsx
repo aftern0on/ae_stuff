@@ -1,63 +1,63 @@
 function Background() {
     this.scaleAndPrecompose = function(layer, comp) {
-        try {
-            // Получаем исходные размеры изображения
-            var footage = layer.source;
-            var originalWidth = footage.width;
-            var originalHeight = footage.height;
+        // Получаем исходные размеры изображения
+        var footage = layer.source;
+        var originalWidth = footage.width;
+        var originalHeight = footage.height;
 
-            // Определяем масштаб по высоте композиции
-            var compHeight = comp.height;
-            var scaleY = (compHeight / originalHeight) * 100;
-            var scaleX = scaleY;
+        // Определяем масштаб по высоте композиции
+        var compHeight = comp.height;
+        var scaleY = (compHeight / originalHeight) * 100;
+        var scaleX = scaleY;
 
-            // Применяем масштаб к исходному слою
-            layer.scale.setValue([scaleX + scaleX / 100 * 2, scaleY + scaleY / 100 * 2]);
+        // Применяем масштаб к исходному слою
+        layer.scale.setValue([scaleX + scaleX / 100 * 2, scaleY + scaleY / 100 * 2]);
 
-            // Получаем новые размеры слоя после масштабирования
-            var layerDuration;
-            if (footage.hasVideo && footage.duration > 0)
-                layerDuration = footage.duration;
-            else
-                layerDuration = comp.duration;
-            var newLayerWidth = originalWidth * (compHeight / originalHeight);
-            var newLayerHeight = compHeight;
-
-            // Создание новой композиции с теми же размерами, что и слой
-            var newCompWidth = Math.round(newLayerWidth);
-            var newCompHeight = Math.round(newLayerHeight);
-            var newComp = app.project.items.addComp(
-                footage.name + '_scaled',
-                newCompWidth,
-                newCompHeight,
-                1,
-                layerDuration,
-                comp.frameRate
-            );
-
-            // Перенос слоя в новую композицию
-            layer.copyToComp(newComp);
-            var newLayer = newComp.layer(1);
-
-            // Устанавливаем позицию слоя в центре и начало слоя на 0
-            newLayer.position.setValue([newCompWidth / 2, newCompHeight / 2]);
-            newLayer.startTime = 0;
-            newLayer.inPoint = 0;
-            newLayer.outPoint = footage.duration;
-            newLayer.motionBlur = true;
-
-            // Добавление новой композиции в основной проект
-            var precompLayer = comp.layers.add(newComp);
-            precompLayer.inPoint = layer.inPoint - layer.startTime;
-            precompLayer.outPoint = layer.outPoint - layer.startTime;
-            precompLayer.moveBefore(layer);
-            precompLayer.startTime = layer.startTime;
-            layer.remove();
-
-            return precompLayer; // Возвращаем новый слой
-        } catch (e) {
-            alert("Ошибка в функции scaleAndPrecompose для слоя " + layer.name + ": " + e.message);
+        // Проверяем, имеет ли слой видео-длительность
+        var layerDuration;
+        if (footage.hasVideo && footage.duration > 0) {
+            // Учитываем stretch для корректной длительности
+            layerDuration = footage.duration * (layer.stretch / 100);
+        } else {
+            // Если это неподвижный объект, задаем длительность равной длительности композиции
+            layerDuration = comp.duration;
         }
+
+        var newLayerWidth = originalWidth * (compHeight / originalHeight);
+        var newLayerHeight = compHeight;
+
+        // Создание новой композиции с теми же размерами, что и слой
+        var newCompWidth = Math.round(newLayerWidth);
+        var newCompHeight = Math.round(newLayerHeight);
+        var newComp = app.project.items.addComp(
+            footage.name + '_scaled',
+            newCompWidth,
+            newCompHeight,
+            1,
+            layerDuration,
+            comp.frameRate
+        );
+
+        // Перенос слоя в новую композицию
+        layer.copyToComp(newComp);
+        var newLayer = newComp.layer(1);
+
+        // Устанавливаем позицию слоя в центре и начало слоя на 0
+        newLayer.position.setValue([newCompWidth / 2, newCompHeight / 2]);
+        newLayer.startTime = 0;
+        newLayer.inPoint = 0;
+        newLayer.outPoint = layerDuration; // Используем скорректированную длительность
+        newLayer.motionBlur = true;
+
+        // Добавление новой композиции в основной проект
+        var precompLayer = comp.layers.add(newComp);
+        precompLayer.inPoint = layer.inPoint - layer.startTime;
+        precompLayer.outPoint = layer.outPoint - layer.startTime;
+        precompLayer.moveBefore(layer);
+        precompLayer.startTime = layer.startTime;
+        layer.remove();
+
+        return precompLayer; // Возвращаем новый слой
     }
 
     this.addBackgroundEffects = function(layer) {
@@ -86,7 +86,7 @@ function Background() {
         var compAspectRatio = comp.width / comp.height;
             
         // Проверяем, является ли слой видеослоем
-        if (selectedLayer instanceof AVLayer && selectedLayer.source instanceof FootageItem) {
+        if (selectedLayer instanceof AVLayer && (selectedLayer.source instanceof FootageItem || selectedLayer.source instanceof CompItem)) {
             // Удаление мягких краев
             var footage = selectedLayer.source;
             if ((comp.width / footage.width > 2) && (comp.height / footage.height > 2)) {
@@ -217,7 +217,10 @@ function Transition() {
             alert("Пожалуйста, выберите слой.");
             return;
         }
-        this.moveBezier(layer, comp, direction);
+
+        for (var i = 0; i < comp.selectedLayers.length; i++) {
+            this.moveBezier(comp.selectedLayers[i], comp, direction);
+        }
     }
 }
 
@@ -266,7 +269,7 @@ function UI() {
             } catch (e) {
                 alert("Ошибка: " + e.toString() + '\nСтрока: ' + e.line);
             }
-
+            
             app.endUndoGroup();
         };
     }
